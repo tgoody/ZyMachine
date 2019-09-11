@@ -1,0 +1,11 @@
+/Users/tylergoodman/RiderProjects/GradingProject/ZybooksGrader/bin/Debug/netcoreapp2.2/ZybooksGrader.deps.json
+/Users/tylergoodman/RiderProjects/GradingProject/ZybooksGrader/bin/Debug/netcoreapp2.2/ZybooksGrader.runtimeconfig.json
+/Users/tylergoodman/RiderProjects/GradingProject/ZybooksGrader/bin/Debug/netcoreapp2.2/ZybooksGrader.runtimeconfig.dev.json
+/Users/tylergoodman/RiderProjects/GradingProject/ZybooksGrader/bin/Debug/netcoreapp2.2/ZybooksGrader.dll
+/Users/tylergoodman/RiderProjects/GradingProject/ZybooksGrader/bin/Debug/netcoreapp2.2/ZybooksGrader.pdb
+/Users/tylergoodman/RiderProjects/GradingProject/ZybooksGrader/obj/Debug/netcoreapp2.2/ZybooksGrader.csprojAssemblyReference.cache
+/Users/tylergoodman/RiderProjects/GradingProject/ZybooksGrader/obj/Debug/netcoreapp2.2/ZybooksGrader.csproj.CoreCompileInputs.cache
+/Users/tylergoodman/RiderProjects/GradingProject/ZybooksGrader/obj/Debug/netcoreapp2.2/ZybooksGrader.AssemblyInfoInputs.cache
+/Users/tylergoodman/RiderProjects/GradingProject/ZybooksGrader/obj/Debug/netcoreapp2.2/ZybooksGrader.AssemblyInfo.cs
+/Users/tylergoodman/RiderProjects/GradingProject/ZybooksGrader/obj/Debug/netcoreapp2.2/ZybooksGrader.dll
+/Users/tylergoodman/RiderProjects/GradingProject/ZybooksGrader/obj/Debug/netcoreapp2.2/ZybooksGrader.pdb

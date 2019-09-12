@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
@@ -22,60 +20,119 @@ namespace ZybooksGrader {
         
         
         static void Main(string[] args) {
-            
+
+            realMain().GetAwaiter().GetResult();
+
+
+
+        }
+        
+        public static async Task realMain() {
             StreamReader file = new StreamReader("Token.txt");
             token = file.ReadLine();
             webber.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
             
             
-            string courseCode = getMostRecentCourseCode().Result;
+            string courseCode = await getMostRecentCourseCode();
+            Console.WriteLine($"Course code: {courseCode}");
 
 
             string path = "UFLCOP3503FoxFall2019_Lab_2_report_2019-09-11_2059.csv";
             List<Student> students = convertZybooksCSV(path);
             
 
-            //List<string> temp = getSectionIDs(courseCode).Result;
+            List<string> sectionIDs = await getSectionIDs(courseCode);
+            Console.WriteLine($"{sectionIDs.Count} sections found");
 
-            string mySectionID = getSectionID(courseCode, "12735").Result;
+            //string mySectionID = getSectionID(courseCode, "12735").Result;
 
-            var assignmentID = getAssignmentIDbyName(courseCode, "Lab 2").Result;
+            var assignmentID = await getAssignmentIDbyName(courseCode, "Lab 2");
+            Console.WriteLine($"Found assignment ID: {assignmentID}");
+
+            Dictionary<string, string> userIDs = new Dictionary<string, string>();
+
+            foreach (var section in sectionIDs) {
+                await getUserIDsBySection(courseCode, section, userIDs);
+            }
 
 
-            var userIDs = getUserIDsBySection(courseCode, mySectionID).Result;
+            int temp = await updateGrades(courseCode, students, userIDs, assignmentID);
+            Console.WriteLine($"Finished with {temp} students");
+
 
         }
 
 
 
+
+
+
+        public static async Task<int> updateGrades(string courseID, List<Student> studentsFromFile,
+            Dictionary<string, string> canvasStudents, string assignmentID) {
+
+
+            int counter = 0;
+            
+            foreach (var student in studentsFromFile) {
+
+                string studentName = student.firstName + " " + student.lastName;
+
+                if (canvasStudents.ContainsKey(studentName)) {
+
+                    var gradeURI = canvasAPIurl +
+                                   $"courses/{courseID}/assignments/{assignmentID}/submissions/{canvasStudents[studentName]}";
+
+                    Dictionary<string, string> temp = new Dictionary<string, string>();
+                    temp.Add("submission[posted_grade", Convert.ToString(student.grade));
+                    var payload = new FormUrlEncodedContent(temp);
+                                   
+                    //var payload = new StringContent($"{{\"submission[posted_grade]\": {student.grade}}}", Encoding.UTF8, "application/json");
+
+                    var response = await webber.PutAsync(gradeURI, payload);
+
+                    counter++;
+     
+                }
+
+                else {
+                    Console.WriteLine($"Student missing from Canvas: {studentName}");
+                }
+
+                if (counter % 10 == 0) {
+                    Console.WriteLine($"{counter} students graded");
+                }
+
+
+            }
+
+            return counter;
+        }
+        
         //Section needs to be given by canvas API ID (use the method below)
-        public static async Task<List<Tuple<string, string>>> getUserIDsBySection(string courseID, string sectionID) {
+        public static async Task getUserIDsBySection(string courseID, string sectionID, Dictionary<string, string> results) {
             
             var sectionURI = canvasAPIurl + $"/courses/{courseID}/sections/{sectionID}?include[]=students";
             var response = webber.GetAsync(sectionURI).Result;
             var content = await response.Content.ReadAsStringAsync();
             JObject currSection = JsonConvert.DeserializeObject<JObject>(content);
             //var studentArray = currSection["students"];
-            
-            List<Tuple<string, string>> results = new List<Tuple<string, string>>();
-            
-            foreach(var student in currSection["students"]) {
-
-                var temp = new Tuple<string, string>((string) student["name"], (string) student["id"]);
-                results.Add(temp);
+                        
+            foreach(var student in currSection["students"]) {                
+                
+                results.Add((string) student["name"], (string) student["id"]);
 
             }
 
-            return results;
+            return;
 
         }
         
         //finds the first assignment with a name containing the string passed in
         public static async Task<string> getAssignmentIDbyName(string courseID, string assignmentName) {
             
-            var sectionURI = canvasAPIurl + $"/courses/{courseID}/assignments";
-            var response = webber.GetAsync(sectionURI).Result;
+            var assignmentsURI = canvasAPIurl + $"/courses/{courseID}/assignments";
+            var response = webber.GetAsync(assignmentsURI).Result;
             var content = await response.Content.ReadAsStringAsync();
             JArray obj = JsonConvert.DeserializeObject<JArray>(content);
             
@@ -90,8 +147,8 @@ namespace ZybooksGrader {
         
         public static async Task<List<string>> getAssignmentIDs(string courseID) {
             
-            var sectionURI = canvasAPIurl + $"/courses/{courseID}/assignments";
-            var response = webber.GetAsync(sectionURI).Result;
+            var assignmentsURI = canvasAPIurl + $"/courses/{courseID}/assignments";
+            var response = webber.GetAsync(assignmentsURI).Result;
             var content = await response.Content.ReadAsStringAsync();
             JArray obj = JsonConvert.DeserializeObject<JArray>(content);
 
@@ -106,7 +163,7 @@ namespace ZybooksGrader {
         public static async Task<List<string>> getSectionIDs(string courseID) {
 
 
-            var sectionURI = canvasAPIurl + $"/courses/{courseID}/sections";
+            var sectionURI = canvasAPIurl + $"/courses/{courseID}/sections?per_page=100";
             var response = webber.GetAsync(sectionURI).Result;
             var content = await response.Content.ReadAsStringAsync();
             JArray obj = JsonConvert.DeserializeObject<JArray>(content);

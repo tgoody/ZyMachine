@@ -30,27 +30,77 @@ namespace ZybooksGrader {
             
             
             string courseCode = getMostRecentCourseCode().Result;
-            Console.WriteLine(courseCode);
 
 
             string path = "UFLCOP3503FoxFall2019_Lab_2_report_2019-09-11_2059.csv";
             List<Student> students = convertZybooksCSV(path);
             
-            Console.WriteLine(students);
 
             //List<string> temp = getSectionIDs(courseCode).Result;
 
             string mySectionID = getSectionID(courseCode, "12735").Result;
 
+            var assignmentID = getAssignmentIDbyName(courseCode, "Lab 2").Result;
+
+
+            var userIDs = getUserIDsBySection(courseCode, mySectionID).Result;
 
         }
 
 
+
+        //Section needs to be given by canvas API ID (use the method below)
+        public static async Task<List<Tuple<string, string>>> getUserIDsBySection(string courseID, string sectionID) {
+            
+            var sectionURI = canvasAPIurl + $"/courses/{courseID}/sections/{sectionID}?include[]=students";
+            var response = webber.GetAsync(sectionURI).Result;
+            var content = await response.Content.ReadAsStringAsync();
+            JObject currSection = JsonConvert.DeserializeObject<JObject>(content);
+            //var studentArray = currSection["students"];
+            
+            List<Tuple<string, string>> results = new List<Tuple<string, string>>();
+            
+            foreach(var student in currSection["students"]) {
+
+                var temp = new Tuple<string, string>((string) student["name"], (string) student["id"]);
+                results.Add(temp);
+
+            }
+
+            return results;
+
+        }
+        
+        //finds the first assignment with a name containing the string passed in
+        public static async Task<string> getAssignmentIDbyName(string courseID, string assignmentName) {
+            
+            var sectionURI = canvasAPIurl + $"/courses/{courseID}/assignments";
+            var response = webber.GetAsync(sectionURI).Result;
+            var content = await response.Content.ReadAsStringAsync();
+            JArray obj = JsonConvert.DeserializeObject<JArray>(content);
+            
+            foreach(var temp in obj){
+                if (((string) temp["name"]).Contains(assignmentName)) {
+                    return (string)temp["id"];
+                }
+            }
+
+            return "No matching assignment found! Error";
+        }
+        
         public static async Task<List<string>> getAssignmentIDs(string courseID) {
             
-            
-            
-            
+            var sectionURI = canvasAPIurl + $"/courses/{courseID}/assignments";
+            var response = webber.GetAsync(sectionURI).Result;
+            var content = await response.Content.ReadAsStringAsync();
+            JArray obj = JsonConvert.DeserializeObject<JArray>(content);
+
+            List<string> assignmentIDs = new List<string>();
+            foreach(var temp in obj){
+                assignmentIDs.Add((string)temp["id"]);
+            }
+
+            return assignmentIDs;
         }
 
         public static async Task<List<string>> getSectionIDs(string courseID) {
@@ -73,7 +123,7 @@ namespace ZybooksGrader {
         //must use 5 digit identifier (4 digit combo may be found in different 5 digit identifier)
         public static async Task<string> getSectionID(string courseID, string sectionNumber) {
             
-            var sectionURI = canvasAPIurl + $"/courses/{courseID}/sections";
+            var sectionURI = canvasAPIurl + $"/courses/{courseID}/sections?per_page=100";
             var response = webber.GetAsync(sectionURI).Result;
             var content = await response.Content.ReadAsStringAsync();
             JArray obj = JsonConvert.DeserializeObject<JArray>(content);
@@ -87,7 +137,7 @@ namespace ZybooksGrader {
             }
 
 
-            return (string)obj[0]["name"];
+            return "error, no section found w/ section number";
         }
             
            
@@ -115,7 +165,6 @@ namespace ZybooksGrader {
             
             
             
-            Console.WriteLine(mostRecentCourse);
 
 
             return (string)mostRecentCourse["id"];

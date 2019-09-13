@@ -14,8 +14,9 @@ namespace ZybooksGrader {
     class Program {
 
         private static string token;
-        private static string canvasAPIurl = "https://ufl.beta.instructure.com/api/v1/"; 
+        private static string canvasAPIurl = "https://ufl.instructure.com/api/v1/"; 
         private static HttpClient webber = new HttpClient();
+        private static Dictionary<string, string> fixedNames = new Dictionary<string, string>();
 
         
         
@@ -33,28 +34,45 @@ namespace ZybooksGrader {
             webber.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
             
+            file = new StreamReader("FixedNames.txt");
+            string fixedNamesLine;
+            while ((fixedNamesLine = file.ReadLine()) != null) {
+                var names = fixedNamesLine.Split(',');
+                fixedNames.Add(names[0].ToLower(), names[1].ToLower());
+            }
+            
+            
             
             string courseCode = await getMostRecentCourseCode();
             Console.WriteLine($"Course code: {courseCode}");
 
 
-            string path = "UFLCOP3503FoxFall2019_Lab_2_report_2019-09-11_2059.csv";
+            string path = "UFLCOP3503FoxFall2019_Introduction_to_zyLabs_and_C_report_2019-09-13_1227.csv";
             List<Student> students = convertZybooksCSV(path);
             
 
             List<string> sectionIDs = await getSectionIDs(courseCode);
             Console.WriteLine($"{sectionIDs.Count} sections found");
 
-            //string mySectionID = getSectionID(courseCode, "12735").Result;
 
-            var assignmentID = await getAssignmentIDbyName(courseCode, "Lab 2");
+            var assignmentID = await getAssignmentIDbyName(courseCode, "Assignment[0]");
             Console.WriteLine($"Found assignment ID: {assignmentID}");
-
+ 
             Dictionary<string, string> userIDs = new Dictionary<string, string>();
+            
+            
+//
+//            foreach (var section in sectionIDs) {
+//                await getUserIDsBySection(courseCode, section, userIDs);
+//            }            
 
-            foreach (var section in sectionIDs) {
-                await getUserIDsBySection(courseCode, section, userIDs);
-            }
+            
+            string mySectionID = getSectionID(courseCode, "13038").Result;
+
+            await getUserIDsBySection(courseCode, mySectionID, userIDs);
+
+           
+
 
 
             int temp = await updateGrades(courseCode, students, userIDs, assignmentID);
@@ -64,7 +82,24 @@ namespace ZybooksGrader {
         }
 
 
+        /// <summary>
+        /// Used to generate a text file named "BadNames.txt" containing mismatched student names between zybooks and canvas
+        /// </summary>
+        /// <param name="Zybooks List"></param>
+        /// <param name="Canvas Dictionary"></param>
+        public static async Task generateBadNames(List<Student> studentsFromFile,
+            Dictionary<string, string> canvasStudents) {
 
+            StreamWriter file = new StreamWriter("BadNames.txt");
+
+            foreach (var student in studentsFromFile) {
+                string studentName = (student.firstName + " " + student.lastName).ToLower();
+                if (!canvasStudents.ContainsKey(studentName)) {
+                    file.WriteLine(studentName);
+                }
+            }
+            file.Close();
+        }
 
 
 
@@ -73,10 +108,11 @@ namespace ZybooksGrader {
 
 
             int counter = 0;
+
             
             foreach (var student in studentsFromFile) {
 
-                string studentName = student.firstName + " " + student.lastName;
+                string studentName = (student.firstName + " " + student.lastName).ToLower();
 
                 if (canvasStudents.ContainsKey(studentName)) {
 
@@ -87,24 +123,46 @@ namespace ZybooksGrader {
                     temp.Add("submission[posted_grade", Convert.ToString(student.grade));
                     var payload = new FormUrlEncodedContent(temp);
                                    
-                    //var payload = new StringContent($"{{\"submission[posted_grade]\": {student.grade}}}", Encoding.UTF8, "application/json");
-
                     var response = await webber.PutAsync(gradeURI, payload);
 
                     counter++;
      
                 }
 
-                else {
-                    Console.WriteLine($"Student missing from Canvas: {studentName}");
-                }
 
+                else {
+
+                    if (fixedNames.ContainsKey(studentName)) {
+
+                        studentName = fixedNames[studentName];
+
+                        if (!canvasStudents.ContainsKey(studentName)) {
+                            continue;
+                        }
+
+                        var gradeURI = canvasAPIurl +
+                                       $"courses/{courseID}/assignments/{assignmentID}/submissions/{canvasStudents[studentName]}";
+
+                        Dictionary<string, string> temp = new Dictionary<string, string>();
+                        temp.Add("submission[posted_grade", Convert.ToString(student.grade));
+                        var payload = new FormUrlEncodedContent(temp);
+                                   
+                        var response = await webber.PutAsync(gradeURI, payload);
+
+                        counter++;
+                        
+
+                    }
+                    
+                }
+                
                 if (counter % 10 == 0) {
                     Console.WriteLine($"{counter} students graded");
                 }
 
 
             }
+
 
             return counter;
         }
@@ -116,15 +174,12 @@ namespace ZybooksGrader {
             var response = webber.GetAsync(sectionURI).Result;
             var content = await response.Content.ReadAsStringAsync();
             JObject currSection = JsonConvert.DeserializeObject<JObject>(content);
-            //var studentArray = currSection["students"];
                         
             foreach(var student in currSection["students"]) {                
                 
-                results.Add((string) student["name"], (string) student["id"]);
+                results.Add(((string)student["name"]).ToLower(), (string) student["id"]);
 
             }
-
-            return;
 
         }
         
@@ -197,7 +252,7 @@ namespace ZybooksGrader {
             return "error, no section found w/ section number";
         }
             
-           
+        
         static async Task<string> getMostRecentCourseCode() {
             
             
@@ -283,6 +338,14 @@ namespace ZybooksGrader {
             return students;
 
         }
+        
+        
+        
+        
+        
+        
+        
+        
         
         //credit:https://brockallen.com/2016/09/24/process-start-for-urls-on-net-core/
         public static void OpenBrowser(string url)

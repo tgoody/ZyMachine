@@ -1,0 +1,7 @@
+Put your students here with names from zybooks that are different from canvas one line at a time
+Example
+Some Joe
+Bobby Brown
+Joe Wilkinson
+
+(Some Joe might be "Some Joseph" in Canvas. We will have to use FixedNames.txt to correct this)

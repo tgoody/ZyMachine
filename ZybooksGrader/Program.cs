@@ -14,7 +14,7 @@ namespace ZybooksGrader {
     class Program {
 
         private static string token;
-        private static string canvasAPIurl = "https://ufl.instructure.com/api/v1/"; 
+        private static string canvasAPIurl = "https://ufl.beta.instructure.com/api/v1/"; 
         private static HttpClient webber = new HttpClient();
         private static Dictionary<string, string> fixedNames = new Dictionary<string, string>();
 
@@ -61,20 +61,17 @@ namespace ZybooksGrader {
             Dictionary<string, string> userIDs = new Dictionary<string, string>();
             
             
-//
+            //Choose either this:
 //            foreach (var section in sectionIDs) {
 //                await getUserIDsBySection(courseCode, section, userIDs);
 //            }            
 
-            
-            string mySectionID = getSectionID(courseCode, "13038").Result;
 
+            //Or this:
+            string mySectionID = getSectionID(courseCode, "13038").Result;
             await getUserIDsBySection(courseCode, mySectionID, userIDs);
 
-           
-
-
-
+  
             int temp = await updateGrades(courseCode, students, userIDs, assignmentID);
             Console.WriteLine($"Finished with {temp} students");
 
@@ -103,6 +100,14 @@ namespace ZybooksGrader {
 
 
 
+        /// <summary>
+        /// The actual grading method, matching students from Canvas to students from Zybooks
+        /// </summary>
+        /// <param name="Canvas Course ID"></param>
+        /// <param name="List of Students from Zybooks CSV"></param>
+        /// <param name="Dictionary of Students from Canvas"></param>
+        /// <param name="Assignment ID from Canvas"></param>
+        /// <returns>Number of students graded</returns>
         public static async Task<int> updateGrades(string courseID, List<Student> studentsFromFile,
             Dictionary<string, string> canvasStudents, string assignmentID) {
 
@@ -167,7 +172,14 @@ namespace ZybooksGrader {
             return counter;
         }
         
-        //Section needs to be given by canvas API ID (use the method below)
+        
+        /// <summary>
+        /// Store a list of students from a particular section (by Canvas supplied Section ID) and store them in the dictionary
+        /// </summary>
+        /// <param name="courseID"></param>
+        /// <param name="sectionID"></param>
+        /// <param name="Canvas Dictionary"></param>
+        /// <returns></returns>
         public static async Task getUserIDsBySection(string courseID, string sectionID, Dictionary<string, string> results) {
             
             var sectionURI = canvasAPIurl + $"/courses/{courseID}/sections/{sectionID}?include[]=students";
@@ -183,7 +195,12 @@ namespace ZybooksGrader {
 
         }
         
-        //finds the first assignment with a name containing the string passed in
+        /// <summary>
+        /// Finds the first assignment with a name containing the string passed in
+        /// </summary>
+        /// <param name="courseID"></param>
+        /// <param name="assignmentName"></param>
+        /// <returns></returns>
         public static async Task<string> getAssignmentIDbyName(string courseID, string assignmentName) {
             
             var assignmentsURI = canvasAPIurl + $"/courses/{courseID}/assignments";
@@ -200,6 +217,12 @@ namespace ZybooksGrader {
             return "No matching assignment found! Error";
         }
         
+        
+        /// <summary>
+        /// Get a list of all assignment IDs from Canvas
+        /// </summary>
+        /// <param name="courseID"></param>
+        /// <returns></returns>
         public static async Task<List<string>> getAssignmentIDs(string courseID) {
             
             var assignmentsURI = canvasAPIurl + $"/courses/{courseID}/assignments";
@@ -215,6 +238,12 @@ namespace ZybooksGrader {
             return assignmentIDs;
         }
 
+        
+        /// <summary>
+        /// Get a list of all section IDs from canvas
+        /// </summary>
+        /// <param name="courseID"></param>
+        /// <returns></returns>
         public static async Task<List<string>> getSectionIDs(string courseID) {
 
 
@@ -232,7 +261,12 @@ namespace ZybooksGrader {
         }
 
         
-        //must use 5 digit identifier (4 digit combo may be found in different 5 digit identifier)
+        /// <summary>
+        /// Get a single section ID from canvas using the FIVE DIGIT IDENTIFIER for the canvas section in the gradebook
+        /// </summary>
+        /// <param name="courseID"></param>
+        /// <param name="sectionNumber"></param>
+        /// <returns>Canvas Section ID number</returns>
         public static async Task<string> getSectionID(string courseID, string sectionNumber) {
             
             var sectionURI = canvasAPIurl + $"/courses/{courseID}/sections?per_page=100";
@@ -253,6 +287,12 @@ namespace ZybooksGrader {
         }
             
         
+        /// <summary>
+        /// Gets the most recent course ID
+        /// Currently only works if you are a TA for one course
+        /// </summary>
+        /// <returns>Course ID number</returns>
+        /// TODO: change this method's name, make it abstract
         static async Task<string> getMostRecentCourseCode() {
             
             
@@ -274,15 +314,16 @@ namespace ZybooksGrader {
                 
             }
             
-            
-            
-            
-
-
             return (string)mostRecentCourse["id"];
 
         }
 
+        
+        /// <summary>
+        /// Given path to assignment CSV, creates list of student objects with zybooks CSV data
+        /// </summary>
+        /// <param name="Path to CSV"></param>
+        /// <returns>List of students</returns>
         public static List<Student> convertZybooksCSV(string path) {
             
             StreamReader file = new StreamReader(path);

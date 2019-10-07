@@ -62,7 +62,7 @@ namespace ZybooksGrader {
             
             
             //Choose either this:
-            foreach (var section in sectionIDs) {
+//            foreach (var section in sectionIDs) {
 //                await getUserIDsBySection(courseCode, section, userIDs);
 //            }            
 

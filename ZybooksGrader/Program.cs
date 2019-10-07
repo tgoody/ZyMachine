@@ -47,7 +47,7 @@ namespace ZybooksGrader {
             Console.WriteLine($"Course code: {courseCode}");
 
 
-            string path = "UFLCOP3503FoxFall2019_Introduction_to_zyLabs_and_C_report_2019-09-13_1227.csv";
+            string path = "UFLCOP3503FoxFall2019_Project_1_-_Linked_List_report_2019-10-07_0017.csv";
             List<Student> students = convertZybooksCSV(path);
             
 
@@ -55,21 +55,21 @@ namespace ZybooksGrader {
             Console.WriteLine($"{sectionIDs.Count} sections found");
 
 
-            var assignmentID = await getAssignmentIDbyName(courseCode, "Assignment[0]");
+            var assignmentID = await getAssignmentIDbyName(courseCode, "Project 1");
             Console.WriteLine($"Found assignment ID: {assignmentID}");
  
             Dictionary<string, string> userIDs = new Dictionary<string, string>();
             
             
             //Choose either this:
-//            foreach (var section in sectionIDs) {
-//                await getUserIDsBySection(courseCode, section, userIDs);
-//            }            
+            foreach (var section in sectionIDs) {
+                await getUserIDsBySection(courseCode, section, userIDs);
+            }            
 
 
             //Or this:
-            string mySectionID = getSectionID(courseCode, "13038").Result;
-            await getUserIDsBySection(courseCode, mySectionID, userIDs);
+//            string mySectionID = getSectionID(courseCode, "13034").Result;
+//            await getUserIDsBySection(courseCode, mySectionID, userIDs);
 
   
             int temp = await updateGrades(courseCode, students, userIDs, assignmentID);
@@ -124,14 +124,29 @@ namespace ZybooksGrader {
                     var gradeURI = canvasAPIurl +
                                    $"courses/{courseID}/assignments/{assignmentID}/submissions/{canvasStudents[studentName]}";
 
+                    var response = await webber.GetAsync(gradeURI);
+                    var content = await response.Content.ReadAsStringAsync();
+                    JObject jsonData = JsonConvert.DeserializeObject<JObject>(content);
+
+                    var stringCheck = jsonData["grade"].ToString();
+                    
+                    if (stringCheck != "") {
+                        
+                        Console.WriteLine("Grade not null");
+                        continue;
+
+                    }
+
                     Dictionary<string, string> temp = new Dictionary<string, string>();
                     temp.Add("submission[posted_grade", Convert.ToString(student.grade));
                     var payload = new FormUrlEncodedContent(temp);
                                    
-                    var response = await webber.PutAsync(gradeURI, payload);
+                    response = await webber.PutAsync(gradeURI, payload);
 
                     counter++;
      
+                    Console.WriteLine($"{counter} students graded");
+
                 }
 
 
@@ -148,22 +163,36 @@ namespace ZybooksGrader {
                         var gradeURI = canvasAPIurl +
                                        $"courses/{courseID}/assignments/{assignmentID}/submissions/{canvasStudents[studentName]}";
 
+                        var response = await webber.GetAsync(gradeURI);
+
+                        var content = await response.Content.ReadAsStringAsync();
+                        JObject jsonData = JsonConvert.DeserializeObject<JObject>(content);
+                        var stringCheck = jsonData["grade"].ToString();
+                    
+                        if (stringCheck != "") {
+                        
+                            Console.WriteLine("Grade not null");
+                            continue;
+
+                        }
+                        
+                        
                         Dictionary<string, string> temp = new Dictionary<string, string>();
                         temp.Add("submission[posted_grade", Convert.ToString(student.grade));
                         var payload = new FormUrlEncodedContent(temp);
                                    
-                        var response = await webber.PutAsync(gradeURI, payload);
+                        response = await webber.PutAsync(gradeURI, payload);
 
                         counter++;
+                        
+                        Console.WriteLine($"{counter} students graded");
                         
 
                     }
                     
                 }
                 
-                if (counter % 10 == 0) {
-                    Console.WriteLine($"{counter} students graded");
-                }
+               
 
 
             }
@@ -203,12 +232,15 @@ namespace ZybooksGrader {
         /// <returns></returns>
         public static async Task<string> getAssignmentIDbyName(string courseID, string assignmentName) {
             
-            var assignmentsURI = canvasAPIurl + $"/courses/{courseID}/assignments";
+            var assignmentsURI = canvasAPIurl + $"/courses/{courseID}/assignments?per_page=100";
             var response = webber.GetAsync(assignmentsURI).Result;
             var content = await response.Content.ReadAsStringAsync();
             JArray obj = JsonConvert.DeserializeObject<JArray>(content);
             
             foreach(var temp in obj){
+                
+                Console.WriteLine((string)temp["name"]);
+                
                 if (((string) temp["name"]).Contains(assignmentName)) {
                     return (string)temp["id"];
                 }

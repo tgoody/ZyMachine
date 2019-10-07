@@ -14,7 +14,7 @@ namespace ZybooksGrader {
     class Program {
 
         private static string token;
-        private static string canvasAPIurl = "https://ufl.beta.instructure.com/api/v1/"; 
+        private static string canvasAPIurl = "https://ufl.instructure.com/api/v1/"; 
         private static HttpClient webber = new HttpClient();
         private static Dictionary<string, string> fixedNames = new Dictionary<string, string>();
 

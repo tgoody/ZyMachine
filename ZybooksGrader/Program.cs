@@ -63,13 +63,13 @@ namespace ZybooksGrader {
             
             //Choose either this:
             foreach (var section in sectionIDs) {
-                await getUserIDsBySection(courseCode, section, userIDs);
-            }            
+//                await getUserIDsBySection(courseCode, section, userIDs);
+//            }            
 
 
             //Or this:
-//            string mySectionID = getSectionID(courseCode, "13034").Result;
-//            await getUserIDsBySection(courseCode, mySectionID, userIDs);
+            string mySectionID = getSectionID(courseCode, "13034").Result;
+            await getUserIDsBySection(courseCode, mySectionID, userIDs);
 
   
             int temp = await updateGrades(courseCode, students, userIDs, assignmentID);

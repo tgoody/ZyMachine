@@ -1,4 +1,5 @@
 Put your students with bad names matching from BadNames.txt with their correct canvas name, comma delimited
+Bad first, then good
 Example
 Some Joe, Some Joseph
 Bobby Brown, Bob Brown

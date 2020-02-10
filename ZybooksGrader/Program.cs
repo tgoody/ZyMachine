@@ -47,7 +47,7 @@ namespace ZybooksGrader {
             Console.WriteLine($"Course code: {courseCode}");
 
 
-            string path = "UFLCOP3503FoxFall2019_Project_1_-_Linked_List_report_2019-10-07_0017.csv";
+            string path = "UFLCOP3503FoxSpring2020_Lab_3_report_2020-02-10_0019.csv";
             List<Student> students = convertZybooksCSV(path);
             
 
@@ -55,21 +55,23 @@ namespace ZybooksGrader {
             Console.WriteLine($"{sectionIDs.Count} sections found");
 
 
-            var assignmentID = await getAssignmentIDbyName(courseCode, "Project 1");
+            var assignmentID = await getAssignmentIDbyName(courseCode, "Lab 3");
             Console.WriteLine($"Found assignment ID: {assignmentID}");
  
             Dictionary<string, string> userIDs = new Dictionary<string, string>();
-            
-            
+
+
             //Choose either this:
-//            foreach (var section in sectionIDs) {
-//                await getUserIDsBySection(courseCode, section, userIDs);
-//            }            
+            foreach (var section in sectionIDs) {
+                await getUserIDsBySection(courseCode, section, userIDs);
+            }            
+
+            //await generateBadNames(students, userIDs);
 
 
             //Or this:
-            string mySectionID = getSectionID(courseCode, "13034").Result;
-            await getUserIDsBySection(courseCode, mySectionID, userIDs);
+//            string mySectionID = getSectionID(courseCode, "13034").Result;
+//            await getUserIDsBySection(courseCode, mySectionID, userIDs);
 
   
             int temp = await updateGrades(courseCode, students, userIDs, assignmentID);
@@ -366,7 +368,8 @@ namespace ZybooksGrader {
             
             var dataPoints = line.Split(',');
 
-            int lastNameIndex = 0, firstNameIndex = 1, emailIndex = 2, percentageIndex = 5, gradeIndex = 6;
+            int lastNameIndex = 0, firstNameIndex = 1, emailIndex = 2, percentageIndex = 5, gradeIndex = 6, labTotal = 9;
+            int labGrade = 0;
 
             //lord forgive me I have sinned
             for (int i = 0; i < dataPoints.Length; i++) {
@@ -388,7 +391,13 @@ namespace ZybooksGrader {
                 else if (headerName.Contains("earned")) {
                     gradeIndex = i;
                 }
-                
+                else if (headerName.Contains("lab total")) {
+                    labTotal = i;
+                    var firstParen = dataPoints[i].IndexOf('(');
+                    var secondParen = dataPoints[i].IndexOf(')');
+                    var subStr = dataPoints[i].Substring(firstParen+1, secondParen - firstParen-1);
+                    labGrade = Convert.ToInt32(subStr);
+                }
             }
 
             List<Student> students = new List<Student>();
@@ -402,8 +411,12 @@ namespace ZybooksGrader {
                 newStudent.firstName = dataPoints[firstNameIndex];
                 newStudent.email = dataPoints[emailIndex];
                 newStudent.percentage = Convert.ToDecimal(dataPoints[percentageIndex]);
-                newStudent.grade = Convert.ToDecimal(dataPoints[gradeIndex]);
-
+                var studentGrade = Convert.ToDecimal(dataPoints[labTotal]);
+                studentGrade /= 100;
+                studentGrade *= labGrade;
+                studentGrade = Math.Round(studentGrade, MidpointRounding.AwayFromZero);
+                //newStudent.grade = Convert.ToDecimal(dataPoints[gradeIndex]);
+                newStudent.grade = studentGrade;
                 students.Add(newStudent);
             }
 

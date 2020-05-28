@@ -2,10 +2,10 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -13,19 +13,22 @@ using Newtonsoft.Json.Linq;
 namespace ZybooksGrader {
     class Program {
 
+        //should probably make stuff like this in an xml file
         private static string token;
-        private static string canvasAPIurl = "https://ufl.instructure.com/api/v1/"; 
+        private static string canvasAPIurl = "https://ufl.beta.instructure.com/api/v1/"; 
         private static HttpClient webber = new HttpClient();
         private static Dictionary<string, string> fixedNames = new Dictionary<string, string>();
+        private static bool needUserPrompts = true;
+        private static bool gradeAllSections = true;
+        private static bool gradeWithRubric = false;
+        private static string assignmentName = "Lab 7";
+        private static bool excludeSections = false;
+        private static List<string> excludes = new List<string>();
+        private static string csvPath = "SomePath";
+        private static bool overwriteGrades = true;
 
-        
-        
-        static void Main(string[] args) {
-
+        static void Main() {
             realMain().GetAwaiter().GetResult();
-
-
-
         }
         
         public static async Task realMain() {
@@ -33,51 +36,122 @@ namespace ZybooksGrader {
             token = file.ReadLine();
             webber.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
+            try {
+                file = new StreamReader("FixedNames.txt");
+                string fixedNamesLine;
+                while ((fixedNamesLine = file.ReadLine()) != null) {
+                    var names = fixedNamesLine.Split(',');
+                    fixedNames.Add(names[0].ToLower(), names[1].ToLower());
+                }
+            }
+            catch (Exception e) {
+                Console.WriteLine("Fixed Names file either missing or empty, is this right?");
+            }
+
+            string courseCode;
+            if (needUserPrompts) {
+                var courses = await GetCoursesThisSemester();
+                List<string> courseNames = courses.Keys.ToList();
+                Console.WriteLine("***Which course are you choosing? (enter number, 0 indexed)");
+                int tempCount = 0;
+                foreach (var name in courseNames) {
+                    Console.WriteLine($"{tempCount++}. {name}");
+                }
+                string indexChoice = Console.ReadLine();
+                courseCode = courses[courseNames[Int32.Parse(indexChoice)]];
+            }
+            else {
+                courseCode = await getMostRecentCourseCode();
+            }
+            Console.WriteLine($"Course code: {courseCode}");
             
-            file = new StreamReader("FixedNames.txt");
-            string fixedNamesLine;
-            while ((fixedNamesLine = file.ReadLine()) != null) {
-                var names = fixedNamesLine.Split(',');
-                fixedNames.Add(names[0].ToLower(), names[1].ToLower());
+            if (needUserPrompts) {
+                Console.WriteLine("***Will you be grading with a Zybooks rubric or your own?");
+                Console.WriteLine("0. Zybooks\n1. My own");
+                string userChoice = Console.ReadLine();
+                if (userChoice == "0") {
+                    gradeWithRubric = false;
+                }
+                else if (userChoice == "1") {
+                    gradeWithRubric = true;
+                }
+                else {
+                    throw new Exception("bad input, handle this later");
+                }
             }
             
-            
-            
-            string courseCode = await getMostRecentCourseCode();
-            Console.WriteLine($"Course code: {courseCode}");
-
-
-            string path = "UFLCOP3503FoxSpring2020_Lab_3_report_2020-02-10_0019.csv";
-            List<Student> students = convertZybooksCSV(path);
-            
-
             List<string> sectionIDs = await getSectionIDs(courseCode);
             Console.WriteLine($"{sectionIDs.Count} sections found");
 
-
-            var assignmentID = await getAssignmentIDbyName(courseCode, "Lab 3");
+            if (needUserPrompts) {
+                Console.WriteLine("***Type some part of the title of your assignment - if it's \"Python Pitches\", type \"Pitches\"");
+                assignmentName = Console.ReadLine();
+            }
+            
+            var assignmentID = await getAssignmentIDbyName(courseCode, assignmentName);
             Console.WriteLine($"Found assignment ID: {assignmentID}");
- 
+            
+            
             Dictionary<string, string> userIDs = new Dictionary<string, string>();
+            if (needUserPrompts) {
+                Console.WriteLine("***Will you be excluding sections?");
+                Console.WriteLine("0. No\n1. Yes");
+                string userChoice = Console.ReadLine();
+                if (userChoice == "0") {
+                    excludeSections = false;
+                }
+                else if (userChoice == "1") {
+                    excludeSections = true;
+                    Console.WriteLine("Input all the section numbers (5 digits) listed, separated by commas, then press enter.");
+                    string listOfSections = Console.ReadLine();
+                    var secArr = listOfSections.Split(',');
+                    excludes.AddRange(secArr);
+                }
+                else {
+                    throw new Exception("bad input, handle this later");
+                }
+            }
 
-
-            //Choose either this:
-            foreach (var section in sectionIDs) {
-                await getUserIDsBySection(courseCode, section, userIDs);
-            }            
-
+            if (excludeSections) {
+                //should have some sort of list of this in an xml
+                excludes.Add(getSectionID(courseCode, "11088").Result);
+                excludes.Add(getSectionID(courseCode, "11091").Result);
+            }
+            
+            if (gradeAllSections) {
+                foreach (var section in sectionIDs) {
+                    if (excludeSections && excludes.Contains(section)) {
+                        continue;
+                    }
+                    await getUserIDsBySection(courseCode, section, userIDs);
+                }
+            }
+            
+            //what do I do with this, it should probably be it's own project.
             //await generateBadNames(students, userIDs);
 
+            else {
+                var mySectionID = getSectionID(courseCode, "13034").Result; 
+                await getUserIDsBySection(courseCode, mySectionID, userIDs);
+            }
 
-            //Or this:
-//            string mySectionID = getSectionID(courseCode, "13034").Result;
-//            await getUserIDsBySection(courseCode, mySectionID, userIDs);
-
-  
-            int temp = await updateGrades(courseCode, students, userIDs, assignmentID);
-            Console.WriteLine($"Finished with {temp} students");
-
-
+            if (needUserPrompts) {
+                Console.WriteLine("***Please input path of CSV file:");
+                csvPath = Console.ReadLine();
+            }
+            
+            List<Student> students;
+            if (gradeWithRubric) {
+                students = CreateFerbyStudents(csvPath);
+                var rubricId = await GetRubricID(courseCode, assignmentID);
+                var rubricFormat = await GenerateRubric(courseCode, rubricId);
+                await FerbyTask(courseCode, userIDs, assignmentID, students, rubricFormat);
+            }
+            else {
+                students = convertZybooksCSV(csvPath);
+                int temp = await updateGrades(courseCode, students, userIDs, assignmentID);
+                Console.WriteLine($"Finished with {temp} students");
+            }
         }
 
 
@@ -112,11 +186,7 @@ namespace ZybooksGrader {
         /// <returns>Number of students graded</returns>
         public static async Task<int> updateGrades(string courseID, List<Student> studentsFromFile,
             Dictionary<string, string> canvasStudents, string assignmentID) {
-
-
             int counter = 0;
-
-            
             foreach (var student in studentsFromFile) {
 
                 string studentName = (student.firstName + " " + student.lastName).ToLower();
@@ -133,14 +203,17 @@ namespace ZybooksGrader {
                     var stringCheck = jsonData["grade"].ToString();
                     
                     if (stringCheck != "") {
-                        
                         Console.WriteLine("Grade not null");
-                        continue;
-
+                        if (!overwriteGrades) {
+                            continue;
+                        }
                     }
 
                     Dictionary<string, string> temp = new Dictionary<string, string>();
                     temp.Add("submission[posted_grade", Convert.ToString(student.grade));
+                    var currDate = DateTime.Now.Date;
+                    var comment = $"Autograded on: {currDate:d}\nIf this grade is incorrect, please contact your TA.";
+                    temp.Add("comment[text_comment]", comment);
                     var payload = new FormUrlEncodedContent(temp);
                                    
                     response = await webber.PutAsync(gradeURI, payload);
@@ -188,18 +261,10 @@ namespace ZybooksGrader {
                         counter++;
                         
                         Console.WriteLine($"{counter} students graded");
-                        
-
                     }
-                    
                 }
-                
-               
-
-
             }
-
-
+            
             return counter;
         }
         
@@ -218,9 +283,13 @@ namespace ZybooksGrader {
             var content = await response.Content.ReadAsStringAsync();
             JObject currSection = JsonConvert.DeserializeObject<JObject>(content);
                         
-            foreach(var student in currSection["students"]) {                
-                
-                results.Add(((string)student["name"]).ToLower(), (string) student["id"]);
+            foreach(var student in currSection["students"]) {
+                try {
+                    results.Add(((string) student["name"]).ToLower(), (string) student["id"]);
+                }
+                catch (Exception e) {
+                    Console.WriteLine(e.Message);
+                }
 
             }
 
@@ -313,10 +382,7 @@ namespace ZybooksGrader {
                 if (((string) temp["name"]).Contains(sectionNumber)) {
                     return (string)temp["id"];
                 }
-                
             }
-
-
             return "error, no section found w/ section number";
         }
             
@@ -405,7 +471,7 @@ namespace ZybooksGrader {
             while ((line=file.ReadLine()) != null) {
 
                 dataPoints = line.Split(',');
-                Student newStudent;
+                Student newStudent = new Student();
 
                 newStudent.lastName = dataPoints[lastNameIndex];
                 newStudent.firstName = dataPoints[firstNameIndex];
@@ -419,21 +485,170 @@ namespace ZybooksGrader {
                 newStudent.grade = studentGrade;
                 students.Add(newStudent);
             }
-
-
             return students;
-
         }
         
         
+        /// <summary>
+        /// Gets dictionary of course names as keys and their IDs as values
+        /// </summary>
+        static async Task<Dictionary<string, string>> GetCoursesThisSemester() {
+        
+            var response = webber.GetAsync(canvasAPIurl + "courses?enrollment_type=ta").Result;
+            var content = await response.Content.ReadAsStringAsync();
+            var results = new Dictionary<string, string>();   
+        
+            JArray obj = JsonConvert.DeserializeObject<JArray>(content);
+            int enrollment_term_id = (int) obj[0]["enrollment_term_id"];
+            foreach (JToken res in obj)
+            {
+                if (enrollment_term_id < (int)res["enrollment_term_id"]) {
+                    enrollment_term_id = (int) res["enrollment_term_id"];
+                }
+            }
+            foreach (JToken res in obj)
+            {
+                if ((int)res["enrollment_term_id"] == enrollment_term_id) {
+                    results.Add((string)res["name"], (string)res["id"]);
+                }
+            }
+            return results;
+        }
         
         
+    public static async Task<string> GetRubricID(string courseID, string assessmentID) {
+        var sectionURI = canvasAPIurl + $"/courses/{courseID}/assignments/{assessmentID}";
+        var response = webber.GetAsync(sectionURI).Result;
+        var content = await response.Content.ReadAsStringAsync();
+        JObject jsonData = JsonConvert.DeserializeObject<JObject>(content);
+        try {
+            JToken rubricSettings = jsonData["rubric_settings"];
+            return (string) rubricSettings["id"];
+        }
+        catch (Exception e) {
+            Console.WriteLine(e.Message);
+            return null;
+        }
+    }
+
+    public static async Task<Rubric> GenerateRubric(string courseID, string rubricId) {
         
-        
-        
-        
-        
-        //credit:https://brockallen.com/2016/09/24/process-start-for-urls-on-net-core/
+        Rubric resultRubric = new Rubric();
+        resultRubric.id = rubricId;
+        var sectionURI = canvasAPIurl + $"/courses/{courseID}/rubrics/{rubricId}";
+        var response = webber.GetAsync(sectionURI).Result;
+        var content = await response.Content.ReadAsStringAsync();
+        JObject jsonData = JsonConvert.DeserializeObject<JObject>(content);
+        JArray criteriaData = (JArray)jsonData["data"];
+        foreach (JToken criterion in criteriaData) {
+            Rubric.Criterion tempCriterion = new Rubric.Criterion();
+            tempCriterion.id = (string)criterion["id"];
+            JArray ratingData = (JArray) criterion["ratings"];
+            
+            foreach (JToken rating in ratingData) {
+                Rubric.Criterion.Rating tempRating = new Rubric.Criterion.Rating();
+                tempRating.id = (string)rating["id"];
+                tempRating.points = (Decimal) rating["points"];
+                tempCriterion.ratings.Add(tempRating);
+            }
+            
+            resultRubric.criteria.Add(tempCriterion);
+        }
+
+        return resultRubric;
+
+    }
+
+    public static List<Student> CreateFerbyStudents(string csvPath) {
+        List<Student> students = new List<Student>();
+        StreamReader file = new StreamReader(csvPath);
+        string line = file.ReadLine();
+        int lastNameIndex = 0, firstNameIndex = 1;
+        int commentIndex = line.Split(',').Length - 1;
+
+        while ((line=file.ReadLine()) != null) {
+
+            var dataPoints = line.Split(',');
+            Student newStudent = new Student();
+            newStudent.rubricGrades = new List<decimal>();
+            newStudent.lastName = dataPoints[lastNameIndex];
+            newStudent.firstName = dataPoints[firstNameIndex];
+            for (int i = 2; i < commentIndex; i++) {
+                try {
+                    newStudent.rubricGrades.Add(Convert.ToDecimal(dataPoints[i]));
+                }
+                catch (Exception e) {
+                    if (dataPoints[i] == "") {
+                        newStudent.rubricGrades.Add(0);
+                    }
+                }
+            }
+
+            if(dataPoints.Length - commentIndex > 0) {
+                newStudent.comment = String.Join(",", dataPoints, commentIndex, dataPoints.Length - commentIndex);
+            }
+            students.Add(newStudent);
+        }
+        return students;
+    }
+
+    public static async Task FerbyTask(string courseID, Dictionary<string, string> canvasStudents,
+        string assessmentID, List<Student> studentsFromFile, Rubric rubric) {
+
+        int counter = 0;
+        foreach (var student in studentsFromFile) {
+
+            string studentName = (student.firstName + " " + student.lastName).ToLower();
+
+            if (canvasStudents.ContainsKey(studentName)) {
+
+                var gradeURI = canvasAPIurl +
+                               $"courses/{courseID}/assignments/{assessmentID}/submissions/{canvasStudents[studentName]}";
+
+                var response = await webber.GetAsync(gradeURI);
+                var content = await response.Content.ReadAsStringAsync();
+                JObject jsonData = JsonConvert.DeserializeObject<JObject>(content);
+
+                var stringCheck = jsonData["grade"].ToString();
+
+                if (stringCheck != "") {
+                    Console.WriteLine("Grade not null");
+                    if (!overwriteGrades) {
+                        continue;
+                    }
+                }
+                Dictionary<string, string> temp = new Dictionary<string, string>();
+                List<string> listOfQueries = new List<string>();
+                if (student.rubricGrades.Count != rubric.criteria.Count) {
+                    throw new Exception("mismatch of criteria count");
+                }
+
+                for (int i = 0; i < rubric.criteria.Count; i++) {
+                    var criterion = rubric.criteria[i];
+                    temp.Add($"rubric_assessment[{criterion.id}][points]", Convert.ToString(student.rubricGrades[i]));
+                    listOfQueries.Add($"rubric_assessment[{criterion.id}][points]={student.rubricGrades[i]}");
+                    string ratingIDChosen = "";
+                    for (int j = 0; j < criterion.ratings.Count; j++) {
+                        if (criterion.ratings[j].points <= student.rubricGrades[i]) {
+                            ratingIDChosen = criterion.ratings[j].id;
+                            break;
+                        }
+                    }
+                    temp.Add($"rubric_assessment[{criterion.id}][rating_id]", ratingIDChosen);
+                    //listOfQueries
+                }
+                if (!string.IsNullOrEmpty(student.comment)) {
+                    temp.Add("comment[text_comment]", student.comment);
+                }
+                var payload = new FormUrlEncodedContent(temp);
+                response = await webber.PutAsync(gradeURI, payload);
+                Console.WriteLine($"{++counter} students graded");
+            }
+        }
+    }
+    
+
+    //credit:https://brockallen.com/2016/09/24/process-start-for-urls-on-net-core/
         public static void OpenBrowser(string url)
         {
             try
@@ -462,8 +677,5 @@ namespace ZybooksGrader {
                 }
             }
         }
-        
-        
-        
     }
 }

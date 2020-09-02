@@ -14,14 +14,16 @@ namespace ZybooksGrader {
     class Program {
 
         //should probably make stuff like this in an xml file
+        
+        private static string assignmentName = "Lab 7";
+        
         private static string token;
         private static string canvasAPIurl = "https://ufl.beta.instructure.com/api/v1/"; 
         private static HttpClient webber = new HttpClient();
         private static Dictionary<string, string> fixedNames = new Dictionary<string, string>();
-        private static bool needUserPrompts = true;
+        private static bool needUserPrompts = false;
         private static bool gradeAllSections = true;
         private static bool gradeWithRubric = false;
-        private static string assignmentName = "Lab 7";
         private static bool excludeSections = false;
         private static List<string> excludes = new List<string>();
         private static string csvPath = "SomePath";
@@ -127,9 +129,6 @@ namespace ZybooksGrader {
                 }
             }
             
-            //what do I do with this, it should probably be it's own project.
-            //await generateBadNames(students, userIDs);
-
             else {
                 var mySectionID = getSectionID(courseCode, "13034").Result; 
                 await getUserIDsBySection(courseCode, mySectionID, userIDs);
@@ -149,8 +148,16 @@ namespace ZybooksGrader {
             }
             else {
                 students = convertZybooksCSV(csvPath);
-                int temp = await updateGrades(courseCode, students, userIDs, assignmentID);
-                Console.WriteLine($"Finished with {temp} students");
+
+                
+                //use to generate bad names for students here
+                await GenerateBadNames(students, userIDs);
+                
+                
+                
+                
+                // int temp = await updateGrades(courseCode, students, userIDs, assignmentID);
+                // Console.WriteLine($"Finished with {temp} students");
             }
         }
 
@@ -158,9 +165,9 @@ namespace ZybooksGrader {
         /// <summary>
         /// Used to generate a text file named "BadNames.txt" containing mismatched student names between zybooks and canvas
         /// </summary>
-        /// <param name="Zybooks List"></param>
-        /// <param name="Canvas Dictionary"></param>
-        public static async Task generateBadNames(List<Student> studentsFromFile,
+        /// <param name="studentsFromFile">Zybooks List</param>
+        /// <param name="canvasStudents">Students from Canvas in Dictionary format</param>
+        public static async Task GenerateBadNames(List<Student> studentsFromFile,
             Dictionary<string, string> canvasStudents) {
 
             StreamWriter file = new StreamWriter("BadNames.txt");

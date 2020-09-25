@@ -15,10 +15,11 @@ namespace ZybooksGrader {
 
         //should probably make stuff like this in an xml file
         
-        private static string assignmentName = "Lab 7";
+        private static string assignmentName = "Lab 2";
+        private static string csvPath = "UFLCOP3503FoxFall2020_Lab_2_report_2020-09-22_1801.csv";
         
         private static string token;
-        private static string canvasAPIurl = "https://ufl.beta.instructure.com/api/v1/"; 
+        private static string canvasAPIurl = "https://ufl.instructure.com/api/v1/"; 
         private static HttpClient webber = new HttpClient();
         private static Dictionary<string, string> fixedNames = new Dictionary<string, string>();
         private static bool needUserPrompts = false;
@@ -26,8 +27,7 @@ namespace ZybooksGrader {
         private static bool gradeWithRubric = false;
         private static bool excludeSections = false;
         private static List<string> excludes = new List<string>();
-        private static string csvPath = "SomePath";
-        private static bool overwriteGrades = true;
+        private static bool overwriteGrades = false;
 
         static void Main() {
             realMain().GetAwaiter().GetResult();
@@ -151,13 +151,13 @@ namespace ZybooksGrader {
 
                 
                 //use to generate bad names for students here
-                await GenerateBadNames(students, userIDs);
+                //await GenerateBadNames(students, userIDs);
                 
                 
                 
                 
-                // int temp = await updateGrades(courseCode, students, userIDs, assignmentID);
-                // Console.WriteLine($"Finished with {temp} students");
+                 int temp = await updateGrades(courseCode, students, userIDs, assignmentID);
+                 Console.WriteLine($"Finished with {temp} students");
             }
         }
 
@@ -254,13 +254,17 @@ namespace ZybooksGrader {
                         if (stringCheck != "") {
                         
                             Console.WriteLine("Grade not null");
-                            continue;
-
+                            if (!overwriteGrades) {
+                                continue;
+                            }
                         }
                         
                         
                         Dictionary<string, string> temp = new Dictionary<string, string>();
                         temp.Add("submission[posted_grade", Convert.ToString(student.grade));
+                        var currDate = DateTime.Now.Date;
+                        var comment = $"Autograded on: {currDate:d}\nIf this grade is incorrect, please contact your TA.";
+                        temp.Add("comment[text_comment]", comment);
                         var payload = new FormUrlEncodedContent(temp);
                                    
                         response = await webber.PutAsync(gradeURI, payload);
@@ -441,7 +445,7 @@ namespace ZybooksGrader {
             
             var dataPoints = line.Split(',');
 
-            int lastNameIndex = 0, firstNameIndex = 1, emailIndex = 2, percentageIndex = 5, gradeIndex = 6, labTotal = 9;
+            int lastNameIndex = 0, firstNameIndex = 1, emailIndex = 2, percentageIndex = 6, gradeIndex = 7, labTotal = 10;
             int labGrade = 0;
 
             //lord forgive me I have sinned

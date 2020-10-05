@@ -15,8 +15,8 @@ namespace ZybooksGrader {
 
         //should probably make stuff like this in an xml file
         
-        private static string assignmentName = "Lab 2";
-        private static string csvPath = "UFLCOP3503FoxFall2020_Lab_2_report_2020-09-22_1801.csv";
+        private static string assignmentName = "Lab 3";
+        private static string csvPath = "UFLCOP3503FoxFall2020_Lab_3_report_2020-10-05_0246.csv";
         
         private static string token;
         private static string canvasAPIurl = "https://ufl.instructure.com/api/v1/"; 
@@ -141,20 +141,16 @@ namespace ZybooksGrader {
             
             List<Student> students;
             if (gradeWithRubric) {
-                students = CreateFerbyStudents(csvPath);
+                students = CreateRubricStudents(csvPath);
                 var rubricId = await GetRubricID(courseCode, assignmentID);
                 var rubricFormat = await GenerateRubric(courseCode, rubricId);
-                await FerbyTask(courseCode, userIDs, assignmentID, students, rubricFormat);
+                await GradeRubric(courseCode, userIDs, assignmentID, students, rubricFormat);
             }
             else {
                 students = convertZybooksCSV(csvPath);
-
                 
                 //use to generate bad names for students here
                 //await GenerateBadNames(students, userIDs);
-                
-                
-                
                 
                  int temp = await updateGrades(courseCode, students, userIDs, assignmentID);
                  Console.WriteLine($"Finished with {temp} students");
@@ -570,15 +566,15 @@ namespace ZybooksGrader {
 
     }
 
-    public static List<Student> CreateFerbyStudents(string csvPath) {
+    public static List<Student> CreateRubricStudents(string csvPath) {
         List<Student> students = new List<Student>();
         StreamReader file = new StreamReader(csvPath);
         string line = file.ReadLine();
         int lastNameIndex = 0, firstNameIndex = 1;
         int commentIndex = line.Split(',').Length - 1;
-
+    
         while ((line=file.ReadLine()) != null) {
-
+    
             var dataPoints = line.Split(',');
             Student newStudent = new Student();
             newStudent.rubricGrades = new List<decimal>();
@@ -594,7 +590,7 @@ namespace ZybooksGrader {
                     }
                 }
             }
-
+    
             if(dataPoints.Length - commentIndex > 0) {
                 newStudent.comment = String.Join(",", dataPoints, commentIndex, dataPoints.Length - commentIndex);
             }
@@ -603,7 +599,7 @@ namespace ZybooksGrader {
         return students;
     }
 
-    public static async Task FerbyTask(string courseID, Dictionary<string, string> canvasStudents,
+    public static async Task GradeRubric(string courseID, Dictionary<string, string> canvasStudents,
         string assessmentID, List<Student> studentsFromFile, Rubric rubric) {
 
         int counter = 0;
@@ -658,35 +654,5 @@ namespace ZybooksGrader {
         }
     }
     
-
-    //credit:https://brockallen.com/2016/09/24/process-start-for-urls-on-net-core/
-        public static void OpenBrowser(string url)
-        {
-            try
-            {
-                Process.Start(url);
-            }
-            catch
-            {
-                // hack because of this: https://github.com/dotnet/corefx/issues/10361
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    url = url.Replace("&", "^&");
-                    Process.Start(new ProcessStartInfo("cmd", $"/c start {url}") { CreateNoWindow = true });
-                }
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                {
-                    Process.Start("xdg-open", url);
-                }
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                {
-                    Process.Start("open", url);
-                }
-                else
-                {
-                    throw;
-                }
-            }
-        }
     }
 }
